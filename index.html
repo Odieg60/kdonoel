@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tirage au Sort de Noël 🎄</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+        
+        .person-item {
+            background: #f8f9fa;
+            padding: 18px;
+            margin: 12px 0;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .person-item:hover:not(.checked) {
+            transform: translateX(5px);
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .person-item.checked {
+            opacity: 0.4;
+            pointer-events: none;
+            background: #e9ecef;
+        }
+        
+        input[type="checkbox"] {
+            width: 24px;
+            height: 24px;
+            margin-right: 15px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+        
+        label {
+            font-size: 1.1em;
+            cursor: pointer;
+            flex: 1;
+            user-select: none;
+        }
+        
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 10px;
+            color: #0066cc;
+            font-weight: 500;
+        }
+        
+        .admin-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        
+        .admin-link:hover {
+            text-decoration: underline;
+        }
+        
+        .emoji {
+            font-size: 1.5em;
+            margin-left: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        /* Admin styles */
+        .admin-container {
+            max-width: 600px;
+        }
+        
+        .admin-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #ddd;
+        }
+        
+        .admin-item.checked {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        
+        .admin-item.unchecked {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .check-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        
+        .check-status.yes {
+            background: #28a745;
+            color: white;
+        }
+        
+        .check-status.no {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .reset-btn {
+            display: block;
+            margin: 20px auto 0;
+            padding: 10px 25px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+        
+        .reset-btn:hover {
+            background: #c82333;
+        }
+        
+        .winner {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            border: 2px solid #ffc107;
+        }
+        
+        .winner h2 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .winner p {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="mainContainer">
+        <div class="loading" id="loading">Chargement...</div>
+    </div>
+
+    <script>
+        const people = [
+            'Josiane',
+            'JD',
+            'Ludivine',
+            'Daphnée',
+            'Sebastien',
+            'Pierre-Yves'
+        ];
+
+        const emojis = ['🎁', '⭐', '🎅', '🎄', '❄️', '🔔'];
+
+        const isAdmin = window.location.hash === '#admin';
+
+        async function loadData() {
+            try {
+                const result = await window.storage.get('secret-santa-picks', true);
+                return result ? JSON.parse(result.value) : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        async function saveData(data) {
+            try {
+                await window.storage.set('secret-santa-picks', JSON.stringify(data), true);
+                return true;
+            } catch (error) {
+                console.error('Erreur de sauvegarde:', error);
+                return false;
+            }
+        }
+
+        async function handleCheck(person, checked) {
+            const data = await loadData();
+            data[person] = checked;
+            const success = await saveData(data);
+            
+            if (success) {
+                await renderList();
+            } else {
+                alert('Erreur lors de la sauvegarde. Réessaye.');
+            }
+        }
+
+        async function updateStatus() {
+            const data = await loadData();
+            const checked = Object.values(data).filter(v => v).length;
+            const status = document.getElementById('status');
+            if (status) {
+                status.textContent = `${checked} personne${checked > 1 ? 's' : ''} cochée${checked > 1 ? 's' : ''} sur ${people.length}`;
+            }
+        }
+
+        async function renderList() {
+            const data = await loadData();
+            const container = document.getElementById('mainContainer');
+            
+            if (isAdmin) {
+                renderAdminPage(data);
+            } else {
+                renderUserPage(data);
+            }
+        }
+
+        function renderUserPage(data) {
+            const container = document.getElementById('mainContainer');
+            container.className = 'container';
+            container.innerHTML = `
+                <h1>🎄 Tirage au Sort de Noël 🎅</h1>
+                <p class="subtitle">Coche la personne que tu as tirée au sort</p>
+                <div id="personList"></div>
+                <div class="status" id="status"></div>
+                <a href="#admin" class="admin-link">👤 Accès Admin</a>
+            `;
+
+            const list = document.getElementById('personList');
+            
+            people.forEach((person, index) => {
+                const isChecked = data[person] || false;
+                
+                const div = document.createElement('div');
+                div.className = `person-item ${isChecked ? 'checked' : ''}`;
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `person-${index}`;
+                checkbox.checked = isChecked;
+                checkbox.onchange = () => handleCheck(person, checkbox.checked);
+                
+                const label = document.createElement('label');
+                label.htmlFor = `person-${index}`;
+                label.innerHTML = `${person} <span class="emoji">${emojis[index]}</span>`;
+                
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                list.appendChild(div);
+            });
+
+            updateStatus();
+        }
+
+        function renderAdminPage(data) {
+            const container = document.getElementById('mainContainer');
+            container.className = 'container admin-container';
+            
+            const checked = Object.values(data).filter(v => v).length;
+            const uncheckedPeople = people.filter(person => !data[person]);
+            
+            let html = `
+                <h1>👤 Page Admin</h1>
+                <p class="subtitle">État des tirages au sort</p>
+                <div class="status">${checked} personne${checked > 1 ? 's ont' : ' a'} coché sur ${people.length}</div>
+            `;
+            
+            if (uncheckedPeople.length === 1) {
+                html += `
+                    <div class="winner">
+                        <h2>🎯 Résultat trouvé !</h2>
+                        <p>C'est ${uncheckedPeople[0]} qui n'a pas encore coché</p>
+                        <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                            (C'est donc toi Pierre-Yves !)
+                        </p>
+                    </div>
+                `;
+            }
+            
+            html += '<div style="margin-top: 20px;">';
+            
+            people.forEach((person, index) => {
+                const isChecked = data[person] || false;
+                html += `
+                    <div class="admin-item ${isChecked ? 'checked' : 'unchecked'}">
+                        <span>${emojis[index]} ${person}</span>
+                        <span class="check-status ${isChecked ? 'yes' : 'no'}">
+                            ${isChecked ? '✓ Coché' : '⏳ En attente'}
+                        </span>
+                    </div>
+                `;
+            });
+            
+            html += `
+                </div>
+                <button class="reset-btn" onclick="resetAll()">🔄 Tout réinitialiser</button>
+                <a href="#" class="admin-link">← Retour à la page utilisateur</a>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        async function resetAll() {
+            if (confirm('Es-tu sûr de vouloir tout réinitialiser ?')) {
+                try {
+                    await window.storage.delete('secret-santa-picks', true);
+                    await renderList();
+                } catch (error) {
+                    alert('Erreur lors de la réinitialisation');
+                }
+            }
+        }
+
+        // Détecter les changements de hash
+        window.addEventListener('hashchange', () => {
+            location.reload();
+        });
+
+        // Initialisation
+        renderList();
+    </script>
+</body>
+</html>
