@@ -266,13 +266,45 @@
         }
 
         async function handleCheck(person, checked) {
+            // Vérifier si l'utilisateur a déjà coché quelque chose
+            const userId = getUserId();
+            const usersRef = doc(db, "secret-santa", "users");
+            const usersSnap = await getDoc(usersRef);
+            const users = usersSnap.exists() ? usersSnap.data() : {};
+            
+            if (users[userId] && checked) {
+                alert('Tu as déjà fait ton choix ! Une seule personne par participant.');
+                await renderList();
+                return;
+            }
+            
             const data = await loadData();
             data[person] = checked;
             const success = await saveData(data);
             
+            if (success && checked) {
+                // Enregistrer que cet utilisateur a coché
+                users[userId] = person;
+                await setDoc(usersRef, users);
+            } else if (success && !checked) {
+                // Si décochage, retirer l'utilisateur
+                delete users[userId];
+                await setDoc(usersRef, users);
+            }
+            
             if (success) {
                 await renderList();
             }
+        }
+        
+        function getUserId() {
+            // Créer un ID unique par navigateur
+            let userId = localStorage.getItem('secretSantaUserId');
+            if (!userId) {
+                userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('secretSantaUserId', userId);
+            }
+            return userId;
         }
 
         async function updateStatus() {
@@ -307,10 +339,10 @@
             container.className = 'container';
             container.innerHTML = `
                 <h1>🎄 Tirage au Sort de Noël 🎅</h1>
-                <p class="subtitle">Coche la personne que tu as tirée au sort pour Noel</p>
+                <p class="subtitle">Coche la personne que tu as tirée au sort</p>
                 <div id="personList"></div>
                 <div class="status" id="status"></div>
-                <a href="#admin" class="admin-link">👤 Accès Admin</a>
+
             `;
 
             const list = document.getElementById('personList');
@@ -392,8 +424,15 @@
         async function resetAll() {
             if (confirm('Es-tu sûr de vouloir tout réinitialiser ?')) {
                 try {
+                    // Supprimer les choix
                     const docRef = doc(db, "secret-santa", "picks");
                     await deleteDoc(docRef);
+                    
+                    // Supprimer les utilisateurs enregistrés
+                    const usersRef = doc(db, "secret-santa", "users");
+                    await deleteDoc(usersRef);
+                    
+                    alert('Tout a été réinitialisé ! Les participants peuvent maintenant refaire leur choix.');
                     await renderList();
                 } catch (error) {
                     console.error('Erreur de réinitialisation:', error);
