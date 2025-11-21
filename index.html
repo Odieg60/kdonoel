@@ -197,6 +197,15 @@
             font-weight: bold;
             color: #333;
         }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -204,7 +213,22 @@
         <div class="loading" id="loading">Chargement...</div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYv22ziq8Sl6ZU_8ueqcYOCKg95MUOpbE",
+            authDomain: "tirage-noel-56def.firebaseapp.com",
+            projectId: "tirage-noel-56def",
+            storageBucket: "tirage-noel-56def.firebasestorage.app",
+            messagingSenderId: "325099315550",
+            appId: "1:325099315550:web:a0dac94fabd9ac54066fcf"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
         const people = [
             'Josiane',
             'JD',
@@ -215,24 +239,28 @@
         ];
 
         const emojis = ['🎁', '⭐', '🎅', '🎄', '❄️', '🔔'];
-
         const isAdmin = window.location.hash === '#admin';
 
         async function loadData() {
             try {
-                const result = await window.storage.get('secret-santa-picks', true);
-                return result ? JSON.parse(result.value) : {};
+                const docRef = doc(db, "secret-santa", "picks");
+                const docSnap = await getDoc(docRef);
+                return docSnap.exists() ? docSnap.data() : {};
             } catch (error) {
+                console.error('Erreur de chargement:', error);
+                showError('Erreur de connexion à Firebase. Vérifie ta connexion internet.');
                 return {};
             }
         }
 
         async function saveData(data) {
             try {
-                await window.storage.set('secret-santa-picks', JSON.stringify(data), true);
+                const docRef = doc(db, "secret-santa", "picks");
+                await setDoc(docRef, data);
                 return true;
             } catch (error) {
                 console.error('Erreur de sauvegarde:', error);
+                showError('Erreur lors de la sauvegarde. Réessaye.');
                 return false;
             }
         }
@@ -244,8 +272,6 @@
             
             if (success) {
                 await renderList();
-            } else {
-                alert('Erreur lors de la sauvegarde. Réessaye.');
             }
         }
 
@@ -258,9 +284,16 @@
             }
         }
 
+        function showError(message) {
+            const container = document.getElementById('mainContainer');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            container.appendChild(errorDiv);
+        }
+
         async function renderList() {
             const data = await loadData();
-            const container = document.getElementById('mainContainer');
             
             if (isAdmin) {
                 renderAdminPage(data);
@@ -347,30 +380,32 @@
             
             html += `
                 </div>
-                <button class="reset-btn" onclick="resetAll()">🔄 Tout réinitialiser</button>
+                <button class="reset-btn" id="resetBtn">🔄 Tout réinitialiser</button>
                 <a href="#" class="admin-link">← Retour à la page utilisateur</a>
             `;
             
             container.innerHTML = html;
+            
+            document.getElementById('resetBtn').onclick = resetAll;
         }
 
         async function resetAll() {
             if (confirm('Es-tu sûr de vouloir tout réinitialiser ?')) {
                 try {
-                    await window.storage.delete('secret-santa-picks', true);
+                    const docRef = doc(db, "secret-santa", "picks");
+                    await deleteDoc(docRef);
                     await renderList();
                 } catch (error) {
+                    console.error('Erreur de réinitialisation:', error);
                     alert('Erreur lors de la réinitialisation');
                 }
             }
         }
 
-        // Détecter les changements de hash
         window.addEventListener('hashchange', () => {
             location.reload();
         });
 
-        // Initialisation
         renderList();
     </script>
 </body>
